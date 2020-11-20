@@ -70,6 +70,11 @@ namespace books
                 }
             }
         }
+
+        public int deleteBook(String id)
+        {
+            return modify($"DELETE FROM books WHERE id={id}");
+        }
     }
 
     class Program
@@ -96,18 +101,28 @@ namespace books
                 
                 switch (key.KeyChar)
                 {
-                    case '1': 
+                    case '1':
+                        Console.WriteLine("SELECT:");
                         String filter = prompt("Enter the first letters of book's title, or nothing (all books)");
                         bs.showBooks(filter);
                         break;
 
                     case '2':
+                        Console.WriteLine("INSERT:");
                         String title = prompt("Enter book title");
                         String authors = prompt("Coma separated list of authors");
                         break;
 
+                    case '3':
+                        Console.WriteLine("UPDATE:");
+                        String upd_id = prompt("Enter book number for update");
+                        String upd_name = prompt("Enter new book's title");
+                        break;
+
                     case '4':
-                        prompt("Enter book's number to delete");                        
+                        Console.WriteLine("DELETE:");
+                        String del_id = prompt("Enter book's number to delete");
+                        Console.WriteLine($"{bs.deleteBook(del_id)} was deleted");
                         break;
 
                     case '5':
