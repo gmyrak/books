@@ -52,48 +52,77 @@ namespace books
 
         public void showBooks(String title)
         {
-            select($"SELECT * FROM books WHERE title LIKE '{title}%'");
-        }
+            String sql =
+                $@"select b.id, b.title, GROUP_CONCAT(a.name, ', ') authors from books b
+                left join lnk_books_authors l on b.id = l.book_id
+                left join authors a on l.author_id = a.id
+                where b.title like '{title}%'
+                group by b.id, b.title";
 
+            SQLiteCommand command = dbConnect.CreateCommand();
+            command.CommandText = sql;
+
+            using (SQLiteDataReader reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    Console.WriteLine($"{reader.GetString(0)}\t{reader.GetString(1)} // {reader.GetString(2)}");
+                }
+            }
+        }
     }
 
     class Program
     {
+
+        static String prompt(String msg)
+        {
+            Console.WriteLine(msg);
+            Console.Write("> ");
+            return Console.ReadLine();
+        }
+
         static void Main(string[] args)
         {
 
-            BooksStorage bs = new BooksStorage(@"c:\Projects\books\database.db");
+            BooksStorage bs = new BooksStorage(@"d:\Projects\books\database.db");
 
-            String prompt = "1 - SELECT, 2 - INSERT, 3 - UPDATE, 4 - DELETE";
+            Boolean actionLoop = true;
 
-
-            while (true)
+            while (actionLoop)
             {
-                Console.WriteLine(prompt);
-                ConsoleKeyInfo key = Console.ReadKey(false);
+                Console.WriteLine("1 - SELECT, 2 - INSERT, 3 - UPDATE, 4 - DELETE, 5 - EXIT");
+                ConsoleKeyInfo key = Console.ReadKey(true);
                 
                 switch (key.KeyChar)
                 {
                     case '1': 
-                        Console.WriteLine("first");
+                        String filter = prompt("Enter the first letters of book's title, or nothing (all books)");
+                        bs.showBooks(filter);
                         break;
 
                     case '2':
-                        Console.WriteLine("second");
+                        String title = prompt("Enter book title");
+                        String authors = prompt("Coma separated list of authors");
                         break;
 
+                    case '4':
+                        prompt("Enter book's number to delete");                        
+                        break;
+
+                    case '5':
+                        actionLoop = false;
+                        break;                             
+
                     default:
-                        Console.WriteLine("Other");
+                        Console.WriteLine("Incorrect choice");
                         break;
 
                 }
+                Console.WriteLine();
 
             }
 
-
-
-            //bs.showBooks("Т");
-            //bs.select($"SELECT * FROM books WHERE title LIKE '%'");
                         
             Console.WriteLine("Bye!");
         }
