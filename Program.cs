@@ -64,25 +64,8 @@ namespace books
             BooksStorage bs = new BooksStorage(@"c:\Projects\books\database.db");
 
             bs.select("SELECT * FROM books");
-            
 
-            /*
-
-            //SQLiteCommand command = connection.CreateCommand();
-            command.CommandText = "INSERT INTO authors(name) values('Дарья Донцова 3')";
-
-            // return value of ExecuteNonQuery (i) is the number of rows affected by the command
-            //int i = command.ExecuteNonQuery();
-
-            using (SQLiteDataReader reader = command.ExecuteReader())
-            {
-                Console.WriteLine(reader);
-
-            }
-
-
-            */
-
+            bs.modify("INSERT INTO authors(name) VALUES ('Агата Кристи')");
 
             Console.WriteLine("Hello!");
         }
