@@ -25,7 +25,7 @@ namespace books
             }
         }
 
-        public void select(String sql)
+        private void select(String sql)
         {
             SQLiteCommand command = dbConnect.CreateCommand();
             command.CommandText = sql;
@@ -33,10 +33,6 @@ namespace books
             using (SQLiteDataReader reader = command.ExecuteReader())
             {
                 int fieldCount = reader.FieldCount;
-
-                //for (int i = 0; i < fieldCount; i++)
-                //    Console.Write(reader.GetString(i) + "\t");
-                //Console.WriteLine();
 
                 while (reader.Read())
                 {
@@ -48,12 +44,19 @@ namespace books
             }
         }
 
-        public void modify(String sql)
+        private void modify(String sql)
         {
             SQLiteCommand command = dbConnect.CreateCommand();
             command.CommandText = sql;
             command.ExecuteNonQuery();
         }
+
+        public void showBooks(String title)
+        {
+            select($"SELECT * FROM books WHERE title LIKE '{title}%'");
+        }
+
+
     }
 
     class Program
@@ -63,9 +66,8 @@ namespace books
 
             BooksStorage bs = new BooksStorage(@"c:\Projects\books\database.db");
 
-            bs.select("SELECT * FROM books");
-
-            bs.modify("INSERT INTO authors(name) VALUES ('Агата Кристи')");
+            bs.showBooks("Т");
+            //bs.select($"SELECT * FROM books WHERE title LIKE '%'");
 
             Console.WriteLine("Hello!");
         }
