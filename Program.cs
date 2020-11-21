@@ -101,6 +101,10 @@ namespace books
 
         public int DeleteBook(String id)
         {
+            // Because SQLite db foreing key rules (ON DELETE CASCADE) doesn't work :(
+            ModifyRequest("DELETE FROM lnk_books_authors WHERE book_id=:id",
+                new Dictionary<string, string> { { "id", id } });
+            
             return ModifyRequest("DELETE FROM books WHERE id=:id",
                 new Dictionary<string, string> { {"id", id } });
         }
@@ -171,7 +175,6 @@ namespace books
         static String GetFullDbName(String dbName)
         {
             String dir = Directory.GetCurrentDirectory();
-
             while(true)
             {
                 String fullName = $@"{dir}\{dbName}";
