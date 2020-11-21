@@ -190,7 +190,7 @@ namespace books
         static void Main(string[] args)
         {
 
-            Console.WriteLine("Technical task. (C) Gmyrak Dmitry\n");
+            Console.WriteLine("Library management system (C) Gmyrak Dmitry\n");
 
             String dbName = "books.db";
             String fullDbName = GetFullDbName(dbName);
