@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Devart.Data.SQLite;
 using System.Text.RegularExpressions;
+using System.IO;
 
 
 namespace books
@@ -26,50 +27,8 @@ namespace books
             }
         }
 
-        public void showBooks(String title)
-        {
-            String sql =
-                $@"select b.id, b.title, GROUP_CONCAT(a.name, ', ') authors from books b
-                left join lnk_books_authors l on b.id = l.book_id
-                left join authors a on l.author_id = a.id
-                where b.title like :title
-                group by b.id, b.title";
 
-            SQLiteCommand command = dbConnect.CreateCommand();
-            command.CommandText = sql;
-            command.Parameters.Add("title", $"{title.Trim()}%");
-
-            using (SQLiteDataReader reader = command.ExecuteReader())
-            {
-                while (reader.Read())
-                {
-                    Console.WriteLine($"{reader.GetString(0)}\t{reader.GetString(1)} - {reader.GetString(2)}");
-                }
-            }
-        }
-
-        public int deleteBook(String id)
-        {
-            return modifyRequest("DELETE FROM books WHERE id=:id",
-                new Dictionary<string, string> { {"id", id } });
-        }
-
-        public int updateBook(String id, String title)
-        {
-            title = title.Trim();
-            if (title == "") return 0;
-
-            return modifyRequest("UPDATE books SET title=:title WHERE id=:id",
-                new Dictionary<string, string> { { "title", title }, {"id", id } });
-        }
-
-        public String getTitle(String id)
-        {
-            return selectOne("SELECT title FROM books WHERE id=:id",
-                new Dictionary<string, string> { {"id", id} });
-        }
-
-        private String selectOne(String sql, Dictionary<String, String> param)
+        private String SelectOne(String sql, Dictionary<String, String> param)
         {
             SQLiteCommand command = dbConnect.CreateCommand();
             command.CommandText = sql;
@@ -96,7 +55,7 @@ namespace books
         }
 
 
-        private int modifyRequest(String sql, Dictionary<String, String> param)
+        private int ModifyRequest(String sql, Dictionary<String, String> param)
         {
             SQLiteCommand command = dbConnect.CreateCommand();
             command.CommandText = sql;
@@ -115,17 +74,73 @@ namespace books
             {
                 return 0;
             }
-            
+
         }
 
-        public int insertBook(String title, String authosr)
+        public void ShowBooks(String title)
+        {
+            String sql =
+                $@"select b.id, b.title, GROUP_CONCAT(a.name, ', ') authors from books b
+                left join lnk_books_authors l on b.id = l.book_id
+                left join authors a on l.author_id = a.id
+                where b.title like :title
+                group by b.id, b.title";
+
+            SQLiteCommand command = dbConnect.CreateCommand();
+            command.CommandText = sql;
+            command.Parameters.Add("title", $"{title.Trim()}%");
+
+            using (SQLiteDataReader reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    Console.WriteLine($"{reader.GetString(0)}\t{reader.GetString(1)} - {reader.GetString(2)}");
+                }
+            }
+        }
+
+        public int DeleteBook(String id)
+        {
+            return ModifyRequest("DELETE FROM books WHERE id=:id",
+                new Dictionary<string, string> { {"id", id } });
+        }
+
+        public int UpdateBook(String id, String title)
         {
             title = title.Trim();
             if (title == "") return 0;
 
-            String maxId = selectOne("SELECT MAX(id)+1 FROM books", null);
+            return ModifyRequest("UPDATE books SET title=:title WHERE id=:id",
+                new Dictionary<string, string> { { "title", title }, {"id", id } });
+        }
 
-            int booksCount = modifyRequest("INSERT INTO books(id, title) VALUES (:id, :title)",
+        public String GetTitle(String id)
+        {
+            return SelectOne("SELECT title FROM books WHERE id=:id",
+                new Dictionary<string, string> { {"id", id} });
+        }
+
+
+        private String AuthorId(String name) // Returns id for existing author or create new author
+        {
+            String personId = SelectOne("SELECT id FROM authors WHERE name=:name",
+                    new Dictionary<string, string> { { "name", name } });
+            if (Regex.IsMatch(personId, @"^\d+$")) return personId; // exists
+
+            String maxId = SelectOne("SELECT MAX(id)+1 FROM authors", null);
+            ModifyRequest("INSERT INTO authors(id, name) VALUES (:id, :name)",
+                new Dictionary<string, string> { { "id", maxId }, { "name", name } });
+            return maxId; // new author
+        }
+
+        public int InsertBook(String title, String authosr)
+        {
+            title = title.Trim();
+            if (title == "") return 0;
+
+            String maxId = SelectOne("SELECT MAX(id)+1 FROM books", null);
+
+            int booksCount = ModifyRequest("INSERT INTO books(id, title) VALUES (:id, :title)",
                 new Dictionary<string, string> { { "id", maxId }, { "title", title } });
 
             if (booksCount != 1) return booksCount;
@@ -135,6 +150,8 @@ namespace books
                 String person = au.Trim();
                 if (person == "") continue;
 
+                ModifyRequest("INSERT INTO lnk_books_authors VALUES (:book_id, :author_id)",
+                    new Dictionary<string, string> { { "book_id", maxId }, { "author_id", AuthorId(person) } });
             }
 
             return booksCount;
@@ -144,20 +161,44 @@ namespace books
     class Program
     {
 
-        static String prompt(String msg)
+        static String Prompt(String msg)
         {
             Console.WriteLine(msg);
             Console.Write("> ");
             return Console.ReadLine();
         }
 
+        static String GetFullDbName(String dbName)
+        {
+            String dir = Directory.GetCurrentDirectory();
+
+            while(true)
+            {
+                String fullName = $@"{dir}\{dbName}";
+                if (File.Exists(fullName)) return fullName;
+
+                DirectoryInfo parent = Directory.GetParent(dir);
+                if (parent == null) return null;
+                dir = parent.FullName;
+            }
+
+        }
+
         static void Main(string[] args)
         {
 
-            Console.WriteLine("Devart Technical task (C) Gmyrak Dmitry\n");
+            Console.WriteLine("Technical task. (C) Gmyrak Dmitry\n");
 
-            
-            BooksStorage bs = new BooksStorage(@"d:\Projects\books\database.db");
+            String dbName = "books.db";
+            String fullDbName = GetFullDbName(dbName);
+            if (fullDbName == null)
+            {
+                Console.WriteLine($"Database file {dbName} not found");
+                Environment.Exit(1);
+            }
+            Console.WriteLine($"Using database file: {fullDbName}\n");
+
+            BooksStorage bs = new BooksStorage(fullDbName);
 
             Boolean actionLoop = true;
 
@@ -169,26 +210,26 @@ namespace books
                 switch (key.KeyChar)
                 {
                     case '1':
-                        String filter = prompt("SELECT:\nEnter the first letters of book's title, or nothing (all books)");
-                        bs.showBooks(filter);
+                        String filter = Prompt("SELECT:\nEnter the first letters of book's title, or nothing (all books)");
+                        bs.ShowBooks(filter);
                         break;
 
                     case '2':                     
-                        String title = prompt("INSERT:\nEnter book title");
-                        String authors = prompt("Coma separated list of authors");
-                        Console.WriteLine($"{bs.insertBook(title, authors)} was added");
+                        String title = Prompt("INSERT:\nEnter book title");
+                        String authors = Prompt("Coma separated list of authors");
+                        Console.WriteLine($"{bs.InsertBook(title, authors)} was added");
                         break;
 
                     case '3':                        
-                        String upd_id = prompt("UPDATE:\nEnter book number for update");
-                        Console.WriteLine($"> {bs.getTitle(upd_id)}");
-                        String upd_name = prompt("Enter new book's title");
-                        Console.WriteLine($"{bs.updateBook(upd_id, upd_name)} was updated");
+                        String upd_id = Prompt("UPDATE:\nEnter book number for update");
+                        Console.WriteLine($"> {bs.GetTitle(upd_id)}");
+                        String upd_name = Prompt("Enter new book's title");
+                        Console.WriteLine($"{bs.UpdateBook(upd_id, upd_name)} was updated");
                         break;
 
                     case '4':
-                        String del_id = prompt("DELETE:\nEnter book's number to delete");
-                        Console.WriteLine($"{bs.deleteBook(del_id)} was deleted");
+                        String del_id = Prompt("DELETE:\nEnter book's number to delete");
+                        Console.WriteLine($"{bs.DeleteBook(del_id)} was deleted");
                         break;
 
                     case '5':
@@ -203,8 +244,7 @@ namespace books
                 Console.WriteLine();
 
             }
-
-                        
+        
             Console.WriteLine("Bye!");
         }
     }
