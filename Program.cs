@@ -20,6 +20,7 @@ namespace books
             try
             {
                 dbConnect.Open();
+                ModifyRequest("PRAGMA foreign_keys = ON", null);
             } catch
             {
                 Console.WriteLine($"Can't open database file: {file}");
@@ -95,10 +96,6 @@ namespace books
 
         public int DeleteBook(String id)
         {
-            // Because SQLite db foreing key rules (ON DELETE CASCADE) doesn't work :(
-            ModifyRequest("DELETE FROM lnk_books_authors WHERE book_id=:id",
-                new Dictionary<string, string> { { "id", id } });
-
             return ModifyRequest("DELETE FROM books WHERE id=:id",
                 new Dictionary<string, string> { { "id", id } });
         }
