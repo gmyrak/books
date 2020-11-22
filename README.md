@@ -83,6 +83,6 @@ CREATE TABLE [lnk_books_authors](
 
 `Using database file: D:\Projects\books\books.db`
 
-В то время как текущим каталогом приложения является `d:\Projects\books\bin\Debug\`
+В то время как текущий каталог приложения здесь `d:\Projects\books\bin\Debug\`
 
-Если файл `books.db` не найден, программа сразу завершается с ошибкой.
+Если файл `books.db` не найден, программа завершается с ошибкой.
