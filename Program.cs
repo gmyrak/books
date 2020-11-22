@@ -40,18 +40,12 @@ namespace books
                 }
             }
 
-            try
+            using (SQLiteDataReader reader = command.ExecuteReader())
             {
-                using (SQLiteDataReader reader = command.ExecuteReader())
-                {
-                    reader.Read();
-                    return reader.GetString(0);
-                }
+                if (reader.Read()) return reader.GetString(0);
+                else return "";
             }
-            catch
-            {
-                return "Error";
-            }
+
         }
 
 
@@ -80,7 +74,7 @@ namespace books
         public void ShowBooks(String title)
         {
             String sql =
-                $@"select b.id, b.title, GROUP_CONCAT(a.name, ', ') authors from books b
+                $@"select b.id, b.title, GROUP_CONCAT(a.name, ', ') au from books b
                 left join lnk_books_authors l on b.id = l.book_id
                 left join authors a on l.author_id = a.id
                 where b.title like :title
@@ -104,9 +98,9 @@ namespace books
             // Because SQLite db foreing key rules (ON DELETE CASCADE) doesn't work :(
             ModifyRequest("DELETE FROM lnk_books_authors WHERE book_id=:id",
                 new Dictionary<string, string> { { "id", id } });
-            
+
             return ModifyRequest("DELETE FROM books WHERE id=:id",
-                new Dictionary<string, string> { {"id", id } });
+                new Dictionary<string, string> { { "id", id } });
         }
 
         public int UpdateBook(String id, String title)
@@ -115,15 +109,31 @@ namespace books
             if (title == "") return 0;
 
             return ModifyRequest("UPDATE books SET title=:title WHERE id=:id",
-                new Dictionary<string, string> { { "title", title }, {"id", id } });
+                new Dictionary<string, string> { { "title", title }, { "id", id } });
         }
 
-        public String GetTitle(String id)
+        public String GetTitle(String book_id)
         {
             return SelectOne("SELECT title FROM books WHERE id=:id",
-                new Dictionary<string, string> { {"id", id} });
+                new Dictionary<string, string> { { "id", book_id } });
         }
 
+        public String GetAuthors(String book_id)
+        {
+            String sql =
+               $@"select GROUP_CONCAT(a.name, ', ') au from books b
+                left join lnk_books_authors l on b.id = l.book_id
+                left join authors a on l.author_id = a.id
+                where b.id = :id";
+                
+            return SelectOne(sql, new Dictionary<string, string> { { "id", book_id } });
+        }
+
+        private String GetAuthorId(String name)
+        {
+            return SelectOne("SELECT id FROM authors WHERE name=:name",
+                    new Dictionary<string, string> { { "name", name } });
+        }
 
         private String AuthorId(String name) // Returns id for existing author or create new author
         {
@@ -135,6 +145,12 @@ namespace books
             ModifyRequest("INSERT INTO authors(id, name) VALUES (:id, :name)",
                 new Dictionary<string, string> { { "id", maxId }, { "name", name } });
             return maxId; // new author
+        }
+
+        private int CreateLink(String book_id, String author_id)
+        {
+            return ModifyRequest("INSERT INTO lnk_books_authors VALUES (:book_id, :author_id)",
+                new Dictionary<string, string> { { "book_id", book_id }, { "author_id", author_id } });
         }
 
         public int InsertBook(String title, String authosr)
@@ -151,26 +167,134 @@ namespace books
 
             foreach (String au in Regex.Split(authosr, @"\s*,\s*"))
             {
-                String person = au.Trim();
+                String person = CleanName(au);
                 if (person == "") continue;
-
-                ModifyRequest("INSERT INTO lnk_books_authors VALUES (:book_id, :author_id)",
-                    new Dictionary<string, string> { { "book_id", maxId }, { "author_id", AuthorId(person) } });
+                CreateLink(maxId, AuthorId(person));
             }
 
             return booksCount;
         }
+
+        public void UpdateAuthors(String book_id, String authorsList)
+        {
+
+            int add = 0;
+            int del = 0; 
+
+            foreach (String au in Regex.Split(authorsList, @"\s*,\s*"))
+            {
+                String person = CleanName(au);
+                if (person == "") continue;
+
+                if (Regex.IsMatch(au, @"^-")) // author for delete
+                {
+                    del += ModifyRequest("DELETE FROM lnk_books_authors WHERE book_id = :book_id AND author_id = :author_id",
+                        new Dictionary<string, string> { { "book_id", book_id }, { "author_id", GetAuthorId(person) } });
+                }
+                else
+                {
+                    add += CreateLink(book_id, AuthorId(person));
+                }
+            }
+            Console.WriteLine($"Authors add: {add}; delete: {del}");
+        }
+
+        public static String CleanName(String name)
+        {
+            // removes [+-;=,.] at the beginning and duplicate spaces between words
+            return String.Join(" ", Regex.Split(Regex.Replace(name.Trim(), @"^[+-;=,.]+", "").Trim(), @"\s+"));            
+        }
     }
 
-    class Program
+    class UserInterface
     {
+        private BooksStorage db;
+        public UserInterface(BooksStorage database)
+        {
+            this.db = database;
+        }
 
-        static String Prompt(String msg)
+        public void MainMenu()
+        {
+            Boolean actionLoop = true;
+
+            while (actionLoop)
+            {
+                Console.WriteLine("1 - SELECT, 2 - INSERT, 3 - UPDATE, 4 - DELETE, 5 - EXIT");
+
+                switch (Console.ReadKey(true).KeyChar)
+                {
+                    case '1':
+                        ShowBooks();
+                        break;
+                    case '2':
+                        AddBook();
+                        break;
+                    case '3':
+                        UpdateBook();
+                        break;
+                    case '4':
+                        DeleteBook();
+                        break;
+                    case '5':
+                        actionLoop = false;
+                        break;
+                    default:
+                        Console.WriteLine("Incorrect choice");
+                        break;
+                }
+                Console.WriteLine();
+            }
+        }
+
+        public void ShowBooks()
+        {
+            String filter = Prompt("SELECT:\nEnter the first letters of book's title, or nothing (all books)");
+            db.ShowBooks(filter);
+        }
+
+        public void AddBook()
+        {
+            String title = Prompt("INSERT:\nEnter book title");
+            if (title == "") return;
+            String authors = Prompt("Coma separated list of authors");
+            Console.WriteLine($"{db.InsertBook(title, authors)} was added");
+        }
+        public void UpdateBook()
+        {
+            String updId = Prompt("UPDATE:\nEnter book number for update");
+            String title = db.GetTitle(updId);
+            if (title == "")
+            {
+                Console.WriteLine("Book not found");
+                return;
+            }
+            Console.WriteLine($"Title: {title}");
+            String updName = Prompt("Enter new book's title");
+            Console.WriteLine($"{db.UpdateBook(updId, updName)} Book name was updated");
+
+            Console.WriteLine($"Authors: {db.GetAuthors(updId)}");
+            String updAuthors = Prompt("Coma separater lisn for add (<name>) or delete ( -<name> )");
+            db.UpdateAuthors(updId, updAuthors);
+        }
+
+        public void DeleteBook()
+        {
+            String del_id = Prompt("DELETE:\nEnter book's number to delete");
+            Console.WriteLine($"{db.DeleteBook(del_id)} was deleted");
+        }
+
+        public static String Prompt(String msg)
         {
             Console.WriteLine(msg);
             Console.Write("> ");
             return Console.ReadLine();
         }
+
+    }
+
+    class Program
+    {
 
         static String GetFullDbName(String dbName)
         {
@@ -202,52 +326,9 @@ namespace books
             Console.WriteLine($"Using database file: {fullDbName}\n");
 
             BooksStorage bs = new BooksStorage(fullDbName);
+            UserInterface ui = new UserInterface(bs);
+            ui.MainMenu();
 
-            Boolean actionLoop = true;
-
-            while (actionLoop)
-            {
-                Console.WriteLine("1 - SELECT, 2 - INSERT, 3 - UPDATE, 4 - DELETE, 5 - EXIT");
-                ConsoleKeyInfo key = Console.ReadKey(true);
-                
-                switch (key.KeyChar)
-                {
-                    case '1':
-                        String filter = Prompt("SELECT:\nEnter the first letters of book's title, or nothing (all books)");
-                        bs.ShowBooks(filter);
-                        break;
-
-                    case '2':                     
-                        String title = Prompt("INSERT:\nEnter book title");
-                        String authors = Prompt("Coma separated list of authors");
-                        Console.WriteLine($"{bs.InsertBook(title, authors)} was added");
-                        break;
-
-                    case '3':                        
-                        String upd_id = Prompt("UPDATE:\nEnter book number for update");
-                        Console.WriteLine($"> {bs.GetTitle(upd_id)}");
-                        String upd_name = Prompt("Enter new book's title");
-                        Console.WriteLine($"{bs.UpdateBook(upd_id, upd_name)} was updated");
-                        break;
-
-                    case '4':
-                        String del_id = Prompt("DELETE:\nEnter book's number to delete");
-                        Console.WriteLine($"{bs.DeleteBook(del_id)} was deleted");
-                        break;
-
-                    case '5':
-                        actionLoop = false;
-                        break;                             
-
-                    default:
-                        Console.WriteLine("Incorrect choice");
-                        break;
-
-                }
-                Console.WriteLine();
-
-            }
-        
             Console.WriteLine("Bye!");
         }
     }
