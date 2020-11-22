@@ -85,7 +85,7 @@ CREATE TABLE [books](
   
 CREATE TABLE [authors](
   [id] INTEGER PRIMARY KEY AUTOINCREMENT, 
-  [name] VARCHAR);
+  [name] VARCHAR NOT NULL);
   
 CREATE TABLE [lnk_books_authors](
   [book_id] INTEGER REFERENCES [books]([id]) ON DELETE CASCADE, 
