@@ -17,15 +17,8 @@ namespace books
         {
             dbConnect = new SQLiteConnection();
             dbConnect.ConnectionString = $"Data Source={file};";
-            try
-            {
-                dbConnect.Open();
-                ModifyRequest("PRAGMA foreign_keys = ON", null);
-            } catch
-            {
-                Console.WriteLine($"Can't open database file: {file}");
-                Environment.Exit(1);
-            }
+            dbConnect.Open();
+            ModifyRequest("PRAGMA foreign_keys = ON", null);
         }
 
 
